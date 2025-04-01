@@ -1,0 +1,10 @@
+# Ignore Python virtual environments
+env/
+*.pyc
+__pycache__/
+
+# Ignore VSCode config
+.vscode/
+
+# Node modules or other folders (if any in future)
+node_modules/
