@@ -39,31 +39,45 @@ fetch('weather_data.json')
   .catch(() => {
     console.log("Using mock data");
     weatherData = [{ lat: 35, lon: -90, cape: 2000, scp: 5 }];
-    updateWeatherFields();
+  
+    // Let WebGL compile first
+    setTimeout(updateWeatherFields, 500);
   });
+  
 
-function updateWeatherFields() {
-  const mappedData = [];
-
-  for (let i = 0; i < 100; i++) {
-    if (i < weatherData.length) {
-      const d = weatherData[i];
-      mappedData.push(new THREE.Vector4(d.lon + 50, d.lat + 50, d.cape, d.scp));
-    } else {
-      mappedData.push(new THREE.Vector4(0, 0, 0, 0)); // zero-padding
+  function updateWeatherFields() {
+    const mappedData = [];
+  
+    for (let i = 0; i < 100; i++) {
+      if (i < weatherData.length && weatherData[i]) {
+        const d = weatherData[i];
+        mappedData.push(new THREE.Vector4(
+          typeof d.lon === 'number' ? d.lon + 50 : 0,
+          typeof d.lat === 'number' ? d.lat + 50 : 0,
+          typeof d.cape === 'number' ? d.cape : 0,
+          typeof d.scp === 'number' ? d.scp : 0
+        ));
+      } else {
+        mappedData.push(new THREE.Vector4(0, 0, 0, 0));
+      }
+    }
+  
+    if (capeMaterial?.uniforms?.weatherData) {
+      capeMaterial.uniforms.weatherData.value = mappedData;
+    }
+  
+    if (scpMaterial?.uniforms?.weatherData) {
+      scpMaterial.uniforms.weatherData.value = mappedData;
     }
   }
-
-  capeMaterial.uniforms.weatherData.value = mappedData;
-  scpMaterial.uniforms.weatherData.value = mappedData;
-}
+  
 
 const capeGeometry = new THREE.PlaneGeometry(100, 100, 100, 100);
 const capeMaterial = new THREE.ShaderMaterial({
   uniforms: {
     time: { value: 0 },
-    weatherData: { value: [] }
-  },
+    weatherData: { value: Array(100).fill().map(() => new THREE.Vector4(0, 0, 0, 0)) }
+},
   vertexShader: `
     varying vec2 vUv;
     void main() {
@@ -97,7 +111,7 @@ const scpGeometry = new THREE.PlaneGeometry(100, 100, 100, 100);
 const scpMaterial = new THREE.ShaderMaterial({
   uniforms: {
     time: { value: 0 },
-    weatherData: { value: [] }
+    weatherData: { value: Array(100).fill().map(() => new THREE.Vector4(0, 0, 0, 0)) }
   },
   vertexShader: `
     varying vec2 vUv;
