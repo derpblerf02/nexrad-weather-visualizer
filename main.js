@@ -1,7 +1,5 @@
-
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.module.js';
 
-// Scene setup
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer();
@@ -10,7 +8,6 @@ document.body.appendChild(renderer.domElement);
 camera.position.set(0, 50, 100);
 camera.lookAt(0, 0, 0);
 
-// Ground plane
 const groundGeometry = new THREE.PlaneGeometry(100, 100);
 const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -30,9 +27,10 @@ radarStations.forEach(pos => {
   pulses.push({ mesh: pulse, radius: 1, active: false });
 });
 
-// CAPE field
+// CAPE + SCP Data
 let weatherData = [];
-fetch('http://localhost:5000/weather') // Update to your server URL
+
+fetch('weather_data.json')
   .then(response => response.json())
   .then(data => {
     weatherData = data;
@@ -44,9 +42,28 @@ fetch('http://localhost:5000/weather') // Update to your server URL
     updateWeatherFields();
   });
 
+function updateWeatherFields() {
+  const mappedData = [];
+
+  for (let i = 0; i < 100; i++) {
+    if (i < weatherData.length) {
+      const d = weatherData[i];
+      mappedData.push(new THREE.Vector4(d.lon + 50, d.lat + 50, d.cape, d.scp));
+    } else {
+      mappedData.push(new THREE.Vector4(0, 0, 0, 0)); // zero-padding
+    }
+  }
+
+  capeMaterial.uniforms.weatherData.value = mappedData;
+  scpMaterial.uniforms.weatherData.value = mappedData;
+}
+
 const capeGeometry = new THREE.PlaneGeometry(100, 100, 100, 100);
 const capeMaterial = new THREE.ShaderMaterial({
-  uniforms: { time: { value: 0 }, weatherData: { value: [] } },
+  uniforms: {
+    time: { value: 0 },
+    weatherData: { value: [] }
+  },
   vertexShader: `
     varying vec2 vUv;
     void main() {
@@ -56,7 +73,7 @@ const capeMaterial = new THREE.ShaderMaterial({
   `,
   fragmentShader: `
     uniform float time;
-    uniform vec4 weatherData[100]; // [x, z, cape, scp]
+    uniform vec4 weatherData[100];
     varying vec2 vUv;
     void main() {
       float intensity = 0.0;
@@ -76,10 +93,12 @@ const capePlane = new THREE.Mesh(capeGeometry, capeMaterial);
 capePlane.position.y = 5;
 scene.add(capePlane);
 
-// SCP field
 const scpGeometry = new THREE.PlaneGeometry(100, 100, 100, 100);
 const scpMaterial = new THREE.ShaderMaterial({
-  uniforms: { time: { value: 0 }, weatherData: { value: [] } },
+  uniforms: {
+    time: { value: 0 },
+    weatherData: { value: [] }
+  },
   vertexShader: `
     varying vec2 vUv;
     void main() {
@@ -109,13 +128,7 @@ const scpPlane = new THREE.Mesh(scpGeometry, scpMaterial);
 scpPlane.position.y = 6;
 scene.add(scpPlane);
 
-function updateWeatherFields() {
-  const mappedData = weatherData.map(d => new THREE.Vector4(d.lon + 50, d.lat + 50, d.cape, d.scp));
-  capeMaterial.uniforms.weatherData.value = mappedData;
-  scpMaterial.uniforms.weatherData.value = mappedData;
-}
-
-// Station vectors
+// Vectors
 const vectors = [];
 for (let x = -40; x <= 40; x += 10) {
   for (let z = -40; z <= 40; z += 10) {
@@ -128,20 +141,6 @@ for (let x = -40; x <= 40; x += 10) {
   }
 }
 
-// Station plots (bloom)
-const stations = [];
-const stationData = [{ x: -30, z: 30 }, { x: 30, z: -30 }];
-stationData.forEach(pos => {
-  const station = new THREE.Mesh(
-    new THREE.SphereGeometry(0.5, 16, 16),
-    new THREE.MeshBasicMaterial({ color: 0x00ffff })
-  );
-  station.position.set(pos.x, 0.5, pos.z);
-  scene.add(station);
-  stations.push({ mesh: station, active: false, scale: 1 });
-});
-
-// Animation
 let time = 0;
 function animate() {
   requestAnimationFrame(animate);
@@ -181,17 +180,6 @@ function animate() {
     }
   });
 
-  stations.forEach(station => {
-    let activated = false;
-    pulses.forEach(pulse => {
-      const dist = station.mesh.position.distanceTo(pulse.mesh.position);
-      if (dist < pulse.radius && pulse.active) activated = true;
-    });
-    station.active = activated;
-    station.scale = station.active ? Math.min(station.scale + 0.1, 2) : Math.max(station.scale - 0.1, 1);
-    station.mesh.scale.set(station.scale, station.scale, station.scale);
-  });
-
   renderer.render(scene, camera);
 }
 animate();
@@ -200,5 +188,4 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-
 });
